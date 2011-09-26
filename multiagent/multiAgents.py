@@ -66,9 +66,39 @@ class ReflexAgent(Agent):
     newFood = successorGameState.getFood()
     newGhostStates = successorGameState.getGhostStates()
     newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
+    offset = 0
 
-    "*** YOUR CODE HERE ***"
-    return successorGameState.getScore()
+    for ghostState in newGhostStates:
+        distToGhost = manhattanDistance(ghostState.getPosition(),newPos)
+        if ghostState.scaredTimer > 0:
+            if ghostState.scaredTimer >= distToGhost:
+                offset += 100/distToGhost
+        else:
+            if distToGhost==0:
+                return 0
+            elif distToGhost < 5:
+                offset -= 5 / distToGhost
+
+    if currentGameState.getFood().count(False) < newFood.count(False):
+        offset += 5
+
+    closestFood = 100
+
+    a = 0
+
+    for x in newFood:
+        b=0
+        for y in x:
+            if y:
+                if manhattanDistance(newPos,(a,b)) < closestFood:
+                    closestFood = manhattanDistance(newPos,(a,b))
+            b += 1
+        a += 1
+
+    offset += 5 /closestFood    
+
+
+    return successorGameState.getScore() + offset
 
 def scoreEvaluationFunction(currentGameState):
   """
@@ -125,7 +155,10 @@ class MinimaxAgent(MultiAgentSearchAgent):
       gameState.getNumAgents():
         Returns the total number of agents in the game
     """
-    "*** YOUR CODE HERE ***"
+    
+    
+
+
     util.raiseNotDefined()
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
@@ -161,9 +194,87 @@ def betterEvaluationFunction(currentGameState):
     evaluation function (question 5).
 
     DESCRIPTION: <write something here so we know what you did>
+
+    -eat closest food as long as ghost will not eat you
+    -eat pellet only if ghosts are close-by
+        -once pellet is eaten, aggresively chase ghosts as long as in effect
+    -
   """
-  "*** YOUR CODE HERE ***"
-  util.raiseNotDefined()
+  
+    numAgents = currentGameState.getNumAgents()
+
+    pacmanState = currentGameState.getPacmanState()
+    currentPos = currentGameState.getPacmanPosition()
+
+    ghostStates = currentGameState.getGhostStates()
+    ghostPositions = currentGameState.getGhostPositions()
+    scaredTimes = [ghostState.scaredTimer for ghostState in ghostStates]
+
+    foodPos = currentGameState.getFood()
+
+    capsulePos = currentGameState.getCapsules()
+    
+    #manhattan distances of pacman pos to ghost positions
+    ghostManDistances = [manhattanDistance(currentPos,ghostPos) for ghostPos in ghostPositions]
+    
+    #offsets are individual "scores" given based on specific features
+    #there are 2 ghost offsets - closest only deals with the closest ghost
+    #avg deals with average distance to ghosts (which can be useful for deciding when to hunt)
+    foodOffset = 0
+    ghostOffset = 0
+    eatGhostOffset = 0
+    pelletOffset = 0
+   
+    #if the ghost and pacman are on the same spot
+    #return -inf; makes sure pacman would never be in a state
+    #of which it would die
+    if 0 in ghostManDistances:
+        return -sys.maxint
+
+    #setting food offset (the reciprocal is used)
+    closestFood = (sys.maxint, sys.maxint)
+
+    a = 0
+
+    for x in foodPos:
+        b=0
+        for y in x:
+            if y:
+                if manhattanDistance(currentPos,(a,b)) < manhattanDistnace(currentPos,closestFood):
+                    closestFood = (a,b)
+            b += 1
+        a += 1
+
+    foodOffset = 1 / manHattanDistance(currentPos,closestFood)
+
+    #setting ghost offsets - basically, causes pacman to run away from dangerous situations
+    #as long as pellet is not eaten
+    #but if pacman is close to ghosts AND pellet, he will try to eat pellet and ghosts
+
+    minGhostDist = min(ghostManDistances)
+    avgGhostDist = float(sum(ghostManDistancse)) / len(ghostManDistances)
+    
+    if max(scaredTimes) == 0:
+        if avgGhostDist < 5 and minGhostDist > 1:
+            closestPellet = min([manhattanDistance(capsule,currentPos) for capsule in capsulePos])
+            if closestPellet < 3:
+                pelletOffset = 5 / closestPellet
+                ghostOffset = -1 / minGhostDist
+            else:
+                pelletOffset = 0
+                ghostOffset = -3 / minGhostDist
+                
+
+    else:
+        closestFeast = sys.maxint #stores the dist of closest eatable ghost
+        for i in range(ghostManDistances):
+            if ghostManDistances[i] <= scaredTimes[i]:
+                if ghostManDistances[i] < closestFeast:
+                    closestFeast = ghostManDistances[i]
+        eatGhostOffset = 25/closestFeast
+
+
+    return foodOffset + ghostOffset + pelletOffset + eatGhostOffset + currentGameState.getScore()
 
 # Abbreviation
 better = betterEvaluationFunction
